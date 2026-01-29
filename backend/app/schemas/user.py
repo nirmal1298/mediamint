@@ -1,6 +1,11 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from enum import Enum
+
+class UserRole(str, Enum):
+    USER = "user"
+    MAINTAINER = "maintainer"
 
 # Shared properties
 class UserBase(BaseModel):
@@ -10,6 +15,7 @@ class UserBase(BaseModel):
 # Properties to receive via API on creation
 class UserCreate(UserBase):
     password: str
+    role: Optional[UserRole] = UserRole.USER
 
 # Properties to receive via API on update
 class UserUpdate(UserBase):
@@ -22,6 +28,7 @@ class UserLogin(BaseModel):
 # Properties to return via API
 class User(UserBase):
     id: int
+    role: UserRole
     created_at: datetime
     
     class Config:

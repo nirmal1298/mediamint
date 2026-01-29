@@ -176,3 +176,56 @@ def update_project(
     db.commit()
     db.refresh(project)
     return project
+
+@router.get("/{id}/members", response_model=List[project_schema.ProjectMemberWithUser])
+def get_project_members(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    current_user: User = Depends(deps.get_current_user),
+    skip: int = 0,
+    limit: int = 10,
+) -> Any:
+    """
+    Get all members of a project with user details.
+    Excludes current user and supports pagination.
+    """
+    # Check if current user is project member
+    member = db.query(ProjectMember).filter(
+        ProjectMember.project_id == id,
+        ProjectMember.user_id == current_user.id
+    ).first()
+    
+    if not member:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    
+    # Get project members excluding current user with pagination
+    members = db.query(ProjectMember).filter(
+        ProjectMember.project_id == id,
+        ProjectMember.user_id != current_user.id  # Exclude current user
+    ).offset(skip).limit(limit).all()
+    
+    return members
+
+@router.get("/{id}/my-membership", response_model=project_schema.ProjectMember)
+def get_my_project_membership(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Get current user's membership in the project.
+    """
+    member = db.query(ProjectMember).filter(
+        ProjectMember.project_id == id,
+        ProjectMember.user_id == current_user.id
+    ).first()
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Not a member of this project")
+    
+    return member
+
+
+

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DashboardSidebar } from '@/components/DashboardSidebar';
+import { useAuth } from '@/context/AuthContext';
 import { Pencil, X, Check } from 'lucide-react';
 
 interface User {
@@ -56,6 +57,18 @@ export default function IssueDetails() {
     const [editedDescription, setEditedDescription] = useState('');
     const [descriptionLoading, setDescriptionLoading] = useState(false);
 
+    // Project Member State (for permission checks)
+    const [projectMemberRole, setProjectMemberRole] = useState<string | null>(null);
+    const [allUsers, setAllUsers] = useState<any[]>([]);
+    const [userSkip, setUserSkip] = useState(0);
+    const [hasMoreUsers, setHasMoreUsers] = useState(true);
+
+    // Assignee State
+    const [assigneeLoading, setAssigneeLoading] = useState(false);
+
+    // Auth
+    const { user } = useAuth();
+
     const fetchData = async () => {
         try {
             if (!id) return;
@@ -63,6 +76,26 @@ export default function IssueDetails() {
             const iRes = await api.get(`/issues/${id}`);
             setIssue(iRes.data);
             setStatus(iRes.data.status);
+
+            // Fetch all users for assignee dropdown (with pagination)
+            try {
+                const usersRes = await api.get(`/users/?skip=0&limit=10`);
+                setAllUsers(usersRes.data);
+                setHasMoreUsers(usersRes.data.length === 10);
+                setUserSkip(10);
+            } catch (err) {
+                console.error("Failed to fetch users", err);
+            }
+
+            // Check current user's role using dedicated endpoint
+            if (user) {
+                try {
+                    const myMembershipRes = await api.get(`/projects/${iRes.data.project_id}/my-membership`);
+                    setProjectMemberRole(myMembershipRes.data.role);
+                } catch (err) {
+                    console.error("Failed to fetch user membership", err);
+                }
+            }
 
             const cRes = await api.get(`/comments/issue/${id}`);
             setComments(cRes.data);
@@ -75,7 +108,32 @@ export default function IssueDetails() {
 
     useEffect(() => {
         fetchData();
-    }, [id]);
+    }, [id, user]);
+
+    const loadMoreUsers = async () => {
+        if (!hasMoreUsers) return;
+        try {
+            const usersRes = await api.get(`/users/?skip=${userSkip}&limit=10`);
+            setAllUsers(prev => [...prev, ...usersRes.data]);
+            setHasMoreUsers(usersRes.data.length === 10);
+            setUserSkip(prev => prev + 10);
+        } catch (err) {
+            console.error("Failed to load more users", err);
+        }
+    };
+
+    // Permission check: can user edit this issue?
+    const canEditIssue = () => {
+        if (!user || !issue) return false;
+
+        // Check if user is project maintainer
+        const isMaintainer = projectMemberRole === 'maintainer';
+
+        // Check if user is issue reporter
+        const isReporter = issue.reporter_id === user.id;
+
+        return isMaintainer || isReporter;
+    };
 
     const handleStatusChange = async (newStatus: string) => {
         try {
@@ -129,6 +187,23 @@ export default function IssueDetails() {
         setEditedDescription('');
     };
 
+    const handleAssigneeChange = async (newAssigneeId: string) => {
+        if (!id) return;
+        setAssigneeLoading(true);
+        try {
+            const assigneeId = newAssigneeId === "unassigned" ? null : parseInt(newAssigneeId);
+            await api.patch(`/issues/${id}`, { assignee_id: assigneeId });
+            if (issue) {
+                setIssue({ ...issue, assignee_id: assigneeId || undefined });
+            }
+        } catch (err) {
+            console.error("Failed to update assignee", err);
+        } finally {
+            setAssigneeLoading(false);
+        }
+    };
+
+
     if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
     if (!issue) return <div className="flex h-screen items-center justify-center">Issue not found</div>;
 
@@ -171,7 +246,7 @@ export default function IssueDetails() {
                                 <Card>
                                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                         <CardTitle>Description</CardTitle>
-                                        {!isEditingDescription && (
+                                        {!isEditingDescription && canEditIssue() && (
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -278,15 +353,41 @@ export default function IssueDetails() {
                                                 <span className="text-sm">User {issue.reporter_id}</span>
                                             </div>
                                         </div>
-                                        {issue.assignee_id && (
+                                        {projectMemberRole?.toLowerCase() === 'maintainer' && (
                                             <div className="flex flex-col space-y-1">
                                                 <span className="text-xs text-muted-foreground">Assignee</span>
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="h-6 w-6">
-                                                        <AvatarFallback className="text-xs">A</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="text-sm">User {issue.assignee_id}</span>
-                                                </div>
+                                                <Select
+                                                    value={issue.assignee_id?.toString() || "unassigned"}
+                                                    onValueChange={handleAssigneeChange}
+                                                    disabled={assigneeLoading}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Unassigned" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                                                        {allUsers.map((user: any) => (
+                                                            <SelectItem key={user.id} value={user.id.toString()}>
+                                                                {user.name || user.email}
+                                                            </SelectItem>
+                                                        ))}
+                                                        {hasMoreUsers && (
+                                                            <div className="p-2 border-t">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="w-full"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        loadMoreUsers();
+                                                                    }}
+                                                                >
+                                                                    Load More...
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
                                         )}
                                     </CardContent>

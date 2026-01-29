@@ -130,7 +130,12 @@ def update_issue(
     if not member:
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
-    # In a real app, you might distinguish between Reporter, Assignee, Maintainer permissions here
+    # Check if user has permission to update this issue
+    if not deps.check_issue_permission(db, issue, current_user, "update"):
+        raise HTTPException(
+            status_code=403,
+            detail="You can only update issues you reported unless you are a project maintainer"
+        )
     
     update_data = issue_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():

@@ -39,3 +39,16 @@ class ProjectMember(ProjectMemberBase):
     
     class Config:
         from_attributes = True
+
+class ProjectMemberWithUser(ProjectMemberBase):
+    id: int
+    project_id: int
+    user: "User"  # Forward reference to User schema
+    
+    class Config:
+        from_attributes = True
+
+# Import User schema for type checking
+from app.schemas.user import User
+ProjectMemberWithUser.model_rebuild()
+

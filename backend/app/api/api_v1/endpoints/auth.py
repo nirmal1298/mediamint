@@ -55,6 +55,7 @@ def create_user(
         email=user_in.email,
         name=user_in.name,
         password_hash=security.get_password_hash(user_in.password),
+        role=user_in.role,
     )
     db.add(user)
     db.commit()

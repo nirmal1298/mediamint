@@ -11,6 +11,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertCircle } from "lucide-react"
 
 export function SignupForm({
@@ -21,6 +22,7 @@ export function SignupForm({
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [role, setRole] = useState("user")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -42,7 +44,7 @@ export function SignupForm({
     setLoading(true)
 
     try {
-      await api.post("/auth/signup", { email, name, password })
+      await api.post("/auth/signup", { email, name, password, role })
       navigate("/login")
     } catch (err: any) {
       setError(err.response?.data?.detail || "Signup failed. Please try again.")
@@ -115,6 +117,26 @@ export function SignupForm({
                 </Field>
                 <FieldDescription>
                   Must be at least 8 characters long.
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="role">Account Type</FieldLabel>
+                <Select value={role} onValueChange={setRole}>
+                  <SelectTrigger id="role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">
+                      User - Create and manage your own issues
+                    </SelectItem>
+                    <SelectItem value="maintainer">
+                      Project Maintainer - Manage projects and all issues
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Choose your role. You can be a maintainer of specific projects regardless of this choice.
                 </FieldDescription>
               </Field>
 

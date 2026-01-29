@@ -42,3 +42,70 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+def check_issue_permission(
+    db: Session,
+    issue,  # Issue model
+    user: User,
+    action: str = "update"
+) -> bool:
+    """
+    Check if user has permission to perform action on issue.
+    
+    Args:
+        db: Database session
+        issue: Issue instance
+        user: Current user
+        action: Action to perform (update, delete, etc.)
+    
+    Returns:
+        bool: True if user has permission, False otherwise
+    """
+    from app.models.project import ProjectMember, Role
+    
+    # Check if user is project member
+    member = db.query(ProjectMember).filter(
+        ProjectMember.project_id == issue.project_id,
+        ProjectMember.user_id == user.id
+    ).first()
+    
+    if not member:
+        return False
+    
+    # Project maintainers can do anything
+    if member.role == Role.MAINTAINER:
+        return True
+    
+    # Regular users can only update their own issues
+    if action in ["update", "delete"]:
+        return issue.reporter_id == user.id
+    
+    # For other actions (like viewing), being a member is enough
+    return True
+
+def check_project_maintainer(
+    db: Session,
+    project_id: int,
+    user: User
+) -> bool:
+    """
+    Check if user is a maintainer of the project.
+    
+    Args:
+        db: Database session
+        project_id: Project ID
+        user: Current user
+    
+    Returns:
+        bool: True if user is maintainer, False otherwise
+    """
+    from app.models.project import ProjectMember, Role
+    
+    member = db.query(ProjectMember).filter(
+        ProjectMember.project_id == project_id,
+        ProjectMember.user_id == user.id,
+        ProjectMember.role == Role.MAINTAINER
+    ).first()
+    
+    return member is not None
+
