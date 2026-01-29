@@ -1,4 +1,4 @@
-# IssueHub — Lightweight Bug Tracker
+# IssueHub Lightweight Bug Tracker
 
 IssueHub is a minimal but powerful bug tracking application designed for teams to manage projects, file issues, and track progress efficiently. Built with modern technologies, it features a robust FastAPI backend and a responsive React frontend with a clean UI.
 
